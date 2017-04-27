@@ -1,0 +1,19 @@
+{{range $service := services}}
+{{range $tag := $service.Tags}}
+upstream {{$service.Name}}.{{key "service/domain"}}/v{{$tag}}/ {
+  server {{$tag}}.{{$service.Name}}.service.consul;
+}
+{{end}}
+{{end}}
+
+server {
+        resolver 172.17.0.1;
+        listen 80;
+        location = /health {
+          return 200;
+          access_log off;
+        }
+        location / {
+          proxy_pass http://$http_host$request_uri;
+        }
+}

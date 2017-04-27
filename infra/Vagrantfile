@@ -1,0 +1,181 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+$infra_nodes = {
+  'infra1' => '172.31.0.100'
+}
+
+$manager_nodes = {
+  'manager1' => '172.31.1.100'
+}
+
+$worker_nodes = {
+  'worker1' => '172.31.2.100',
+  # 'worker2' => '172.31.2.101'
+}
+
+Vagrant.configure("2") do |config|
+
+  config.vm.provider "virtualbox" do |vb|
+    # clone all VMs to save space and time
+    vb.linked_clone = true
+
+    # custom virtualbox arguments
+    # vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
+  end
+
+  # configure infra nodes
+  $infra_nodes.each do |node_name, ipaddr|
+    infra config, node_name, ipaddr
+  end
+
+  # configure manager nodes
+  $manager_nodes.each do |node_name, ipaddr|
+    manager config, node_name, ipaddr
+  end
+
+  # configure worker nodes
+  $worker_nodes.each do |node_name, ipaddr|
+    worker config, node_name, ipaddr
+  end
+
+end
+
+# infra node configuration
+def infra(config, node_name, ipaddr)
+
+  config.vm.define node_name do |node|
+    node.vm.box = "bento/ubuntu-16.04"
+    node.vm.hostname = node_name
+    node.vm.network "private_network", ip: ipaddr, nic_type: "virtio", netmask: "255.255.0.0"
+
+    hosts node
+
+    berkshelf node, "./Berksfile"
+    chef node, ipaddr, ['infra']
+
+    groups node
+
+    node.vm.post_up_message = "Using IP: #{ipaddr}"
+  end
+end
+
+# manager node configuration
+def manager(config, node_name, ipaddr)
+
+  config.vm.define node_name do |node|
+    node.vm.box = "bento/ubuntu-16.04"
+    node.vm.hostname = node_name
+    node.vm.network "private_network", ip: ipaddr, nic_type: "virtio", netmask: "255.255.0.0"
+
+    hosts node
+
+    berkshelf node, "./Berksfile"
+    chef node, ipaddr, ['manager']
+
+    groups node
+
+    node.vm.post_up_message = "Using IP: #{ipaddr}"
+  end
+end
+
+# worker node configuration
+def worker(config, node_name, ipaddr)
+
+  config.vm.define node_name do |node|
+    node.vm.box = "bento/ubuntu-16.04"
+    node.vm.hostname = node_name
+    node.vm.network "private_network", ip: ipaddr, nic_type: "virtio", netmask: "255.255.0.0"
+
+    hosts node
+
+    berkshelf node, "./Berksfile"
+    chef node, ipaddr, ['worker']
+
+    groups node
+
+    node.vm.post_up_message = "Using IP: #{ipaddr}"
+  end
+end
+
+# configure hosts file
+def hosts(node)
+  $infra_nodes.each do |infra, ip|
+    node.vm.provision "shell", inline: <<-SHELL
+      if ! grep -q #{infra} /etc/hosts; then printf '%s\t%s\n' "#{ip}" "#{infra}" >> /etc/hosts; fi
+    SHELL
+  end
+
+  $manager_nodes.each do |manager, ip|
+    node.vm.provision "shell", inline: <<-SHELL
+      if ! grep -q #{manager} /etc/hosts; then printf '%s\t%s\n' "#{ip}" "#{manager}" >> /etc/hosts; fi
+    SHELL
+  end
+
+  $worker_nodes.each do |worker, ip|
+    node.vm.provision "shell", inline: <<-SHELL
+      if ! grep -q #{worker} /etc/hosts; then printf '%s\t%s\n' "#{ip}" "#{worker}" >> /etc/hosts; fi
+    SHELL
+  end
+end
+
+def groups(node)
+  node.vm.provision "shell", inline: <<-SHELL
+    # add vagrant user to docker group
+    if ! groups | grep docker; then sudo usermod -aG docker vagrant; fi
+  SHELL
+end
+
+# enable berkshelf
+def berkshelf(node, berksfile)
+  node.berkshelf.enabled = true
+  node.berkshelf.berksfile_path = berksfile
+end
+
+# chef provisioning
+def chef(node, ipaddr, roles)
+  node.vm.provision "chef_zero" do |chef|
+    # specify the local paths where chef data is stored
+    chef.cookbooks_path = "~/chef-repo/cookbooks"
+    chef.data_bags_path = "~/chef-repo/data_bags"
+    chef.nodes_path = "~/chef-client/nodes"
+    chef.roles_path = "~/chef-repo/roles"
+
+    for role in roles
+      chef.add_role role
+    end
+
+    chef.json = {
+      "docker_ps" => {
+        "docker" => {
+          "dns" => $infra_nodes.values,
+          "insecure_registry" => "#{$infra_nodes['infra1']}:5000"
+        },
+        "swarm" => {
+          "advertise_addr" => ipaddr,
+          "listen_addr" => ipaddr
+        },
+        "consul" => {
+          "bind" => ipaddr,
+          "join" => $infra_nodes['infra1'],
+          "dc" => 'us-east-1'
+        }
+      },
+      "consul_ps" => {
+        "server" => {
+          "client_addr" => '0.0.0.0',
+          "bind_addr" => ipaddr,
+          "datacenter" => "us-east-1",
+          "dns_port" => '53',
+          "recursors" => '8.8.8.8'
+        }
+      },
+      "consul" => {
+        "version" => "0.8.0",
+        "config" => {
+          "ui" => true
+        }
+      }
+    }
+  end
+end

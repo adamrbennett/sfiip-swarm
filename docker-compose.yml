@@ -1,0 +1,71 @@
+version: "3"
+services:
+
+  # consul:
+  #   image: consul
+  #   ports:
+  #     - "8500:8500"
+  #     - "8600:8600/udp"
+  #   environment:
+  #     - "SERVICE_IGNORE=true"
+  #   networks:
+  #     - sfi
+  #
+  # registrator:
+  #   image: gliderlabs/registrator
+  #   command: -internal consul://consul:8500
+  #   volumes:
+  #     - /var/run/docker.sock:/tmp/docker.sock
+  #   networks:
+  #     - sfi
+  #   deploy:
+  #     mode: global
+
+  # busybox:
+  #   image: busybox
+  #   command: ping google.com
+  #   networks:
+  #     - sfi
+
+  proxy:
+    image: proxy:1.0.0
+    ports:
+      - "80:80"
+    networks:
+      - sfi
+
+  roasts-v1:
+    image: roasts:1.0.0
+    # environment:
+    #   - SERVICE_TAGS=1.0.0
+    networks:
+      - sfi
+
+  roasts-v2:
+    image: roasts:2.0.0
+    # environment:
+    #   - SERVICE_TAGS=2.0.0
+    networks:
+      - sfi
+
+  brews-v1:
+    image: brews:1.0.0
+    # environment:
+    #   - SERVICE_TAGS=1.0.0
+    networks:
+      - sfi
+
+  visualizer:
+    image: dockersamples/visualizer:stable
+    ports:
+      - "8080:8080"
+    environment:
+      - "SERVICE_IGNORE=true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+networks:
+  sfi:

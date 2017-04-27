@@ -1,0 +1,15 @@
+## prometheus.yml ##
+
+scrape_configs:
+  - job_name: 'sfiip'
+
+    consul_sd_configs:
+      - server: 172.17.0.1:8500
+        services:
+          - cadvisor
+          - node-exporter
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: job
+      - source_labels: [__meta_consul_node]
+        target_label: instance

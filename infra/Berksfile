@@ -1,0 +1,9 @@
+source "https://supermarket.chef.io"
+
+cookbook 'docker'
+cookbook 'consul'
+
+cookbook 'aws_ps', path: '~/chef-repo/cookbooks/aws_ps'
+cookbook 'docker_ps', path: '~/chef-repo/cookbooks/docker_ps'
+cookbook 'consul_ps', path: '~/chef-repo/cookbooks/consul_ps'
+cookbook 'vault_ps', path: '~/chef-repo/cookbooks/vault_ps'
