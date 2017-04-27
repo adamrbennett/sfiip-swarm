@@ -1,6 +1,9 @@
 {{range $service := services}}
+upstream {{$service.Name}}.{{key "service/domain"}} {
+  server {{$service.Name}}.service.consul;
+}
 {{range $tag := $service.Tags}}
-upstream {{$service.Name}}.{{key "service/domain"}}/v{{$tag}}/ {
+upstream {{$tag}}.{{$service.Name}}.{{key "service/domain"}} {
   server {{$tag}}.{{$service.Name}}.service.consul;
 }
 {{end}}

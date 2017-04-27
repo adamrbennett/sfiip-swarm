@@ -24,8 +24,11 @@ services:
     image: menu
     build:
       context: ./menu
+    environment:
+      - KV_ROOT=http://consul:8500/v1/kv
     ports:
       - 3002:80
     links:
       - brews:brews
       - roasts:roasts
+      - consul:consul
